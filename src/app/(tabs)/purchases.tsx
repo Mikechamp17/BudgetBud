@@ -52,6 +52,11 @@ export default function PurchasesScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      Promise.resolve().then(() => {
+        if (!active) return;
+        setError(null);
+        setRows(null);
+      });
       listPurchases({ month, categoryId, accountId, newPlacesOnly })
         .then((r) => active && setRows(r))
         .catch((e: Error) => active && setError(e.message));
@@ -76,6 +81,7 @@ export default function PurchasesScreen() {
         <Chip label="New places only" selected={newPlacesOnly} onPress={() => setNewPlacesOnly((v) => !v)} />
       </View>
       {error ? <ErrorText>{error}</ErrorText> : null}
+      {rows === null && !error ? <ThemedText themeColor="textSecondary">Loading…</ThemedText> : null}
       {rows?.length === 0 ? <ThemedText themeColor="textSecondary">No purchases match.</ThemedText> : null}
       {rows?.map((p) => (
         <Link key={p.id} href={`/purchase/${p.id}`} asChild>

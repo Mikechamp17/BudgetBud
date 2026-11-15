@@ -65,3 +65,32 @@ Deno.test('a call without a signed-in user is rejected', async () => {
     await response.body?.cancel();
   }
 });
+
+Deno.test('a file listing outside the user folder stops the deletion before anything is removed', async () => {
+  const { deps, users, files } = world();
+  let removed = 0;
+  const leaky: DeleteDeps = {
+    ...deps,
+    listFiles: () => Promise.resolve(['user-b/april.pdf']),
+    removeFiles: () => Promise.resolve(void removed++),
+  };
+  let failed = false;
+  await deleteAccount(leaky, provider().p, 'user-a').catch(() => (failed = true));
+  assertEquals(failed, true);
+  assertEquals(removed, 0);
+  assertEquals(users.has('user-a'), true);
+  assertEquals(files.statements.includes('user-b/april.pdf'), true);
+});
+
+Deno.test('files are removed in batches of at most 100', async () => {
+  const { deps } = world();
+  const paths = Array.from({ length: 250 }, (_, i) => `user-a/f${i}.pdf`);
+  const batches: number[] = [];
+  const many: DeleteDeps = {
+    ...deps,
+    listFiles: (bucket) => Promise.resolve(bucket === 'statements' ? paths : []),
+    removeFiles: (_bucket, batch) => Promise.resolve(void batches.push(batch.length)),
+  };
+  await deleteAccount(many, provider().p, 'user-a');
+  assertEquals(batches, [100, 100, 50]);
+});

@@ -1,5 +1,8 @@
 -- Sorting and new places (U5). User rules first, then built-in rules, else Uncategorized for AI sorting.
 
+-- Set when Groq has answered for a merchant, whatever the answer, so a merchant costs one call per user.
+alter table public.merchants add column ai_sorted_at timestamptz;
+
 -- Finds the best rule for a normalized merchant name: the user's rules before built-in ones,
 -- exact matches before word matches, and longer (more specific) names first.
 create function public.find_category_rule(p_user_id uuid, p_normalized text)

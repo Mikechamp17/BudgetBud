@@ -1,6 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 
-import { handler, HISTORY_URL, loadRates, parseEcbXml, type Rate, RECENT_URL, type RateStore } from './index.ts';
+import { handler, HISTORY_START, HISTORY_URL, loadRates, parseEcbXml, type Rate, RECENT_URL, type RateStore } from './index.ts';
 
 // A recorded excerpt of the ECB reference-rate file.
 const recordedXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -21,7 +21,7 @@ function memoryStore(): RateStore & { rows: Map<string, Rate> } {
   const rows = new Map<string, Rate>();
   return {
     rows,
-    isEmpty: () => Promise.resolve(rows.size === 0),
+    earliestDate: () => Promise.resolve([...rows.values()].map((r) => r.rate_date).sort()[0] ?? null),
     insertNew: (rates) => {
       for (const r of rates) {
         const key = `${r.currency}:${r.rate_date}`;
@@ -40,7 +40,7 @@ Deno.test('parses ECB rates by day and currency', () => {
   ]);
 });
 
-Deno.test('the first run loads the full history, later runs the last 90 days', async () => {
+Deno.test('runs load the full history until it is complete, then the last 90 days', async () => {
   const store = memoryStore();
   const urls: string[] = [];
   const fetchFn = (url: string | URL | Request) => {
@@ -49,8 +49,11 @@ Deno.test('the first run loads the full history, later runs the last 90 days', a
   };
   await loadRates(store, fetchFn as typeof fetch);
   assertEquals(store.rows.get('GBP:2025-04-01')?.rate, 0.9, 'a year-old rate is loaded');
+  // The recorded file stops in 2025, like a first run that died part way, so the next run retries the history.
   await loadRates(store, fetchFn as typeof fetch);
-  assertEquals(urls, [HISTORY_URL, RECENT_URL]);
+  await store.insertNew([{ currency: 'USD', rate_date: HISTORY_START, rate: 1.1789 }]);
+  await loadRates(store, fetchFn as typeof fetch);
+  assertEquals(urls, [HISTORY_URL, HISTORY_URL, RECENT_URL]);
 });
 
 Deno.test('rerunning for dates already stored changes nothing', async () => {

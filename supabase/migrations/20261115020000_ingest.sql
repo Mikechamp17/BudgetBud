@@ -227,6 +227,7 @@ declare
   v_new uuid;
   v_merchant uuid;
   v_first public.source_records;
+  v_old_merchant uuid;
 begin
   select * into v_src from public.source_records where id = p_source_record_id;
   if not found then
@@ -253,17 +254,18 @@ begin
   -- Recompute the old purchase from its earliest remaining source.
   select * into v_first from public.source_records
   where purchase_id = v_old.id order by booking_date, created_at limit 1;
+  v_old_merchant := public.upsert_merchant(v_first.user_id, v_first.normalized_merchant);
   update public.purchases
   set booking_date = v_first.booking_date,
       description = v_first.description,
-      merchant_id = public.upsert_merchant(v_first.user_id, v_first.normalized_merchant),
+      merchant_id = v_old_merchant,
       updated_at = now()
   where id = v_old.id;
 
-  perform public.refresh_new_place(v_merchant);
-  if v_old.merchant_id is not null and v_old.merchant_id <> v_merchant then
-    perform public.refresh_new_place(v_old.merchant_id);
-  end if;
+  -- Recompute new-place flags for every merchant the split touched: the split-out record's,
+  -- the old purchase's original one, and the one it moved to.
+  perform public.refresh_new_place(m)
+  from (select distinct m from unnest(array[v_merchant, v_old.merchant_id, v_old_merchant]) as m where m is not null) t;
 
   return v_new;
 end;

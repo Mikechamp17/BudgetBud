@@ -1,6 +1,7 @@
 // Loads ECB euro reference rates into fx_rates (KTD13). Called daily by pg_cron with the secret key.
-// The first run loads the full history so imported past statements convert too. Later runs load the
-// last 90 days, which also fills any days a failed run missed. Existing rows are never changed.
+// Until the full history is stored, runs load the whole history file, so imported past statements convert
+// too, and a first run that stopped part way is repaired on the next run. After that, runs load the last
+// 90 days, which also fills any days a failed run missed. Existing rows are never changed.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { json, secretKey } from '../_shared/auth.ts';
@@ -8,6 +9,8 @@ import { json, secretKey } from '../_shared/auth.ts';
 const ECB = 'https://www.ecb.europa.eu/stats/eurofxref';
 export const HISTORY_URL = `${ECB}/eurofxref-hist.xml`;
 export const RECENT_URL = `${ECB}/eurofxref-hist-90d.xml`;
+/** The first day of ECB reference rates. History is complete once a rate from this day is stored. */
+export const HISTORY_START = '1999-01-04';
 
 export type Rate = { currency: string; rate_date: string; rate: number };
 
@@ -25,12 +28,14 @@ export function parseEcbXml(xml: string): Rate[] {
 }
 
 export interface RateStore {
-  isEmpty(): Promise<boolean>;
+  /** The earliest stored rate date, or null when no rates are stored. */
+  earliestDate(): Promise<string | null>;
   insertNew(rates: Rate[]): Promise<void>;
 }
 
 export async function loadRates(store: RateStore, fetchFn: typeof fetch = fetch) {
-  const url = (await store.isEmpty()) ? HISTORY_URL : RECENT_URL;
+  const earliest = await store.earliestDate();
+  const url = !earliest || earliest > HISTORY_START ? HISTORY_URL : RECENT_URL;
   const response = await fetchFn(url);
   if (!response.ok) {
     throw new Error(`ECB request failed with status ${response.status}`);
@@ -50,10 +55,10 @@ export async function handler(req: Request): Promise<Response> {
   }
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, key, { auth: { persistSession: false } });
   const store: RateStore = {
-    async isEmpty() {
-      const { count, error } = await admin.from('fx_rates').select('*', { count: 'exact', head: true });
+    async earliestDate() {
+      const { data, error } = await admin.from('fx_rates').select('rate_date').order('rate_date').limit(1);
       if (error) throw error;
-      return !count;
+      return (data?.[0]?.rate_date as string | undefined) ?? null;
     },
     async insertNew(rates) {
       const { error } = await admin

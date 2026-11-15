@@ -13,10 +13,11 @@ const categories: Category[] = [
 /** In-memory store: a merchant leaves the uncategorized list once it has a rule. */
 function fakeStore(merchants: Merchant[]) {
   const rules: { userId: string; merchant: string; categoryId: string }[] = [];
+  const sortedIds = new Set<string>();
   const usage: number[] = [];
   const store: SortStore = {
-    uncategorizedMerchants: () =>
-      Promise.resolve(merchants.filter((m) => !rules.some((r) => r.merchant === m.name))),
+    uncategorizedMerchants: () => Promise.resolve(merchants.filter((m) => !sortedIds.has(m.id))),
+    markSorted: (_userId, ids) => Promise.resolve(void ids.forEach((id) => sortedIds.add(id))),
     categories: () => Promise.resolve(categories),
     saveAiRule: (userId, merchant, categoryId) => {
       rules.push({ userId, merchant: merchant.name, categoryId });
@@ -130,4 +131,17 @@ Deno.test('a call with neither a signed-in user nor the secret key is rejected',
   const response = await handler(new Request('http://localhost/categorize-merchants', { method: 'POST', body: '{}' }));
   assertEquals(response.status, 401);
   assertFalse((await response.json()).sorted);
+});
+
+Deno.test('a merchant Groq answers Uncategorized is not sent again', async () => {
+  const { store, rules } = fakeStore([{ id: 'm1', name: 'mystery shop' }]);
+  let calls = 0;
+  const sort: SortMerchants = () => {
+    calls++;
+    return Promise.resolve({ results: [{ merchant: 'mystery shop', category: 'Uncategorized' }], model: 'm', inputTokens: 1, outputTokens: 1 });
+  };
+  await categorizeUser(store, sort, 'user-a');
+  await categorizeUser(store, sort, 'user-a');
+  assertEquals(calls, 1);
+  assertEquals(rules, []);
 });

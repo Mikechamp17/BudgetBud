@@ -28,6 +28,7 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      Promise.resolve().then(() => active && setError(null));
       Promise.all([fetchMonthlySpending(month), fetchMonthlySpending(shiftMonth(month, -1))])
         .then(([current, previous]) => active && setData({ current, previous }))
         .catch((e: Error) => active && setError(e.message));

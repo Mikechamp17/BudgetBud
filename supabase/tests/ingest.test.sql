@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(21);
+select plan(23);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@example.com'),
@@ -113,6 +113,20 @@ select is(
   public.ingest_source_records('40000000-0000-0000-0000-0000000000a3',
     '[{"booking_date": "2026-03-04", "amount_minor": -4217, "currency": "EUR", "description": "Lidl"}]')->'merged',
   '0'::jsonb, 'AE2: the same purchase from another file never re-merges with the bank purchase');
+
+-- Splitting out the record that created a merged purchase moves the old purchase to another merchant.
+select public.ingest_source_records('40000000-0000-0000-0000-0000000000a3',
+  '[{"booking_date": "2026-05-02", "amount_minor": -3333, "currency": "EUR", "description": "LIDL MARSA"}]');
+select public.ingest_source_records('40000000-0000-0000-0000-0000000000a1',
+  '[{"provider_transaction_id": "tx-9", "booking_date": "2026-05-03", "amount_minor": -3333, "currency": "EUR", "description": "Lidl Marsa Branch"}]');
+select public.split_source_record((select id from public.source_records where description = 'LIDL MARSA'));
+select is((select count(*)::int from public.purchases where amount_minor = -3333 and is_new_place), 2,
+  'After the split, each of the two merchants has exactly one new place');
+select is(
+  (select count(*)::int from public.merchants m where m.user_id = '00000000-0000-0000-0000-00000000000a'
+     and exists (select 1 from public.purchases p where p.merchant_id = m.id and p.amount_minor = -3333)
+     and m.first_purchase_date is null),
+  0, 'Every merchant the split touched has its first purchase date');
 
 -- Ownership.
 select throws_ok(

@@ -18,12 +18,17 @@ export interface LinkStore {
   /** Finds this user's link with this state and clears the state, so it works only once. */
   consumeState(userId: string, state: string): Promise<Link | null>;
   markFailed(linkId: string, message: string): Promise<void>;
+  /** Records a problem on a link without changing its status. */
+  markError(linkId: string, message: string): Promise<void>;
   activate(linkId: string, validUntil: string, accounts: BankAccount[]): Promise<void>;
   putSession(linkId: string, sessionId: string): Promise<void>;
   getSession(linkId: string): Promise<string | null>;
   deleteSession(linkId: string): Promise<void>;
   getLink(userId: string, linkId: string): Promise<(Link & { available_accounts: BankAccount[] }) | null>;
-  /** Updates the session uid of accounts already mapped to this link. Returns the accounts not mapped yet. */
+  /**
+   * Attaches accounts the user already has for these bank accounts (same provider_account_id, from this link or an
+   * earlier one) to this link with the new session uid. Returns the accounts not mapped yet.
+   */
   refreshMappedAccounts(userId: string, linkId: string, accounts: BankAccount[]): Promise<BankAccount[]>;
   mapAccount(userId: string, linkId: string, account: BankAccount, financialAccountId: string | null): Promise<void>;
   markRevoked(linkId: string): Promise<void>;
@@ -76,15 +81,38 @@ export async function completeLink(
     return { link_id: link.id, status: 'failed', message: 'The bank link was cancelled.' };
   }
 
-  const session = await provider.createSession(input.code);
+  // A reconnect of a link that still works must not lose that link when this attempt fails.
+  const fail = async (message: string) => {
+    if (link.status === 'pending') await store.markFailed(link.id, message);
+    else await store.markError(link.id, message);
+    return { link_id: link.id, status: 'failed' as const, message };
+  };
+
+  let session;
+  try {
+    session = await provider.createSession(input.code);
+  } catch (error) {
+    return await fail(`The bank link could not be completed: ${(error as Error).message}`);
+  }
   if (session.accounts.length === 0) {
     await provider.deleteSession(session.sessionId).catch(() => undefined);
-    await store.markFailed(link.id, WHITELIST_MESSAGE);
-    return { link_id: link.id, status: 'failed', message: WHITELIST_MESSAGE };
+    return await fail(WHITELIST_MESSAGE);
   }
-  await store.putSession(link.id, session.sessionId);
-  await store.activate(link.id, session.validUntil ?? validUntil(), session.accounts);
-  const unmapped = await store.refreshMappedAccounts(userId, link.id, session.accounts);
+
+  let unmapped: BankAccount[];
+  try {
+    const previousSession = await store.getSession(link.id);
+    await store.putSession(link.id, session.sessionId);
+    await store.activate(link.id, session.validUntil ?? validUntil(), session.accounts);
+    unmapped = await store.refreshMappedAccounts(userId, link.id, session.accounts);
+    if (previousSession && previousSession !== session.sessionId) {
+      await provider.deleteSession(previousSession).catch((e) => console.error('Old session deletion failed', e));
+    }
+  } catch (error) {
+    // Never leave a live bank session whose ID is not stored: nothing could revoke it later.
+    await provider.deleteSession(session.sessionId).catch(() => undefined);
+    return await fail(`The bank link could not be saved: ${(error as Error).message}`);
+  }
   return { link_id: link.id, status: 'active', unmapped_accounts: unmapped };
 }
 
@@ -151,6 +179,9 @@ export function supabaseLinkStore(admin: SupabaseClient): LinkStore {
       );
       return rows[0] ?? null;
     },
+    async markError(linkId, message) {
+      check(await admin.from('bank_links').update({ last_error: message }).eq('id', linkId));
+    },
     async markFailed(linkId, message) {
       check(await admin.from('bank_links').update({ status: 'failed', last_error: message }).eq('id', linkId));
     },
@@ -182,14 +213,23 @@ export function supabaseLinkStore(admin: SupabaseClient): LinkStore {
       );
     },
     async refreshMappedAccounts(userId, linkId, accounts) {
+      // Match across all of the user's accounts, so re-linking a bank after removing it reuses the same
+      // financial accounts instead of creating parallel ones that would count purchases twice.
+      const ids = accounts.map((a) => a.providerAccountId);
       const mapped = check(
-        await admin.from('financial_accounts').select('id, provider_account_id').eq('user_id', userId).eq('bank_link_id', linkId),
+        await admin.from('financial_accounts').select('id, provider_account_id').eq('user_id', userId).in('provider_account_id', ids),
       ) as { id: string; provider_account_id: string }[];
       const unmapped: BankAccount[] = [];
       for (const account of accounts) {
         const existing = mapped.find((m) => m.provider_account_id === account.providerAccountId);
         if (existing) {
-          check(await admin.from('financial_accounts').update({ provider_account_uid: account.uid }).eq('id', existing.id));
+          check(
+            await admin
+              .from('financial_accounts')
+              .update({ bank_link_id: linkId, provider_account_uid: account.uid })
+              .eq('id', existing.id)
+              .eq('user_id', userId),
+          );
         } else {
           unmapped.push(account);
         }

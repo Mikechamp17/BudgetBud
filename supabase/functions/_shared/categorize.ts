@@ -14,6 +14,8 @@ export interface SortStore {
   uncategorizedMerchants(userId: string): Promise<Merchant[]>;
   categories(): Promise<Category[]>;
   saveAiRule(userId: string, merchant: Merchant, categoryId: string): Promise<void>;
+  /** Records that Groq answered for these merchants, so they are not sent again. */
+  markSorted(userId: string, merchantIds: string[]): Promise<void>;
   logUsage(userId: string, model: string, inputTokens: number, outputTokens: number): Promise<void>;
 }
 
@@ -55,6 +57,7 @@ export async function categorizeUser(store: SortStore, sort: SortMerchants, user
       await store.saveAiRule(userId, merchant, categoryId);
       sorted++;
     }
+    await store.markSorted(userId, batch.map((m) => m.id));
   }
   return { sorted, failedBatches };
 }
@@ -63,18 +66,23 @@ export async function categorizeUser(store: SortStore, sort: SortMerchants, user
 export function supabaseSortStore(admin: SupabaseClient): SortStore {
   return {
     async uncategorizedMerchants(userId) {
+      // One row per merchant with Uncategorized purchases that Groq has not answered for yet.
       const { data, error } = await admin
-        .from('purchases')
-        .select('merchant_id, merchants!inner(normalized_name)')
+        .from('merchants')
+        .select('id, normalized_name, purchases!inner(id)')
         .eq('user_id', userId)
-        .eq('category_source', 'none');
+        .is('ai_sorted_at', null)
+        .eq('purchases.category_source', 'none');
       if (error) throw error;
-      const unique = new Map<string, Merchant>();
-      for (const row of data ?? []) {
-        const merchant = row.merchants as unknown as { normalized_name: string };
-        unique.set(row.merchant_id as string, { id: row.merchant_id as string, name: merchant.normalized_name });
-      }
-      return [...unique.values()];
+      return (data ?? []).map((row) => ({ id: row.id as string, name: row.normalized_name as string }));
+    },
+    async markSorted(userId, merchantIds) {
+      const { error } = await admin
+        .from('merchants')
+        .update({ ai_sorted_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .in('id', merchantIds);
+      if (error) throw error;
     },
     async categories() {
       const { data, error } = await admin.from('categories').select('id, name').is('user_id', null);

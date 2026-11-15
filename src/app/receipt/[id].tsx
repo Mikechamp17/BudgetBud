@@ -28,7 +28,13 @@ export default function ReceiptScreen() {
 
   useEffect(() => {
     if (receipt?.status !== 'pending') return;
-    candidatePurchases(receipt, search).then(setCandidates).catch((e: Error) => setError(e.message));
+    let active = true;
+    candidatePurchases(receipt, search)
+      .then((c) => active && setCandidates(c))
+      .catch((e: Error) => active && setError(e.message));
+    return () => {
+      active = false;
+    };
   }, [receipt, search]);
 
   async function link(purchaseId: string) {

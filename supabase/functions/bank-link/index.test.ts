@@ -10,6 +10,7 @@ function fakeStore() {
   const links = new Map<string, Link & { state: string | null; available_accounts: BankAccount[] }>();
   const sessions = new Map<string, string>();
   const mapped = new Map<string, BankAccount>();
+  const errors: { linkId: string; message: string }[] = [];
   let next = 1;
   const store: LinkStore = {
     createPendingLink(userId, bank, state) {
@@ -27,6 +28,10 @@ function fakeStore() {
       const link = [...links.values()].find((l) => l.state === state && l.user_id === userId) ?? null;
       if (link) link.state = null;
       return Promise.resolve(link);
+    },
+    markError(linkId, message) {
+      errors.push({ linkId, message });
+      return Promise.resolve();
     },
     markFailed(linkId, message) {
       links.get(linkId)!.status = 'failed';
@@ -48,7 +53,7 @@ function fakeStore() {
     mapAccount: (_userId, _linkId, account) => Promise.resolve(void mapped.set(account.providerAccountId, account)),
     markRevoked: (linkId) => Promise.resolve(void (links.get(linkId)!.status = 'revoked')),
   };
-  return { store, links, sessions, mapped };
+  return { store, links, sessions, mapped, errors };
 }
 
 function fakeProvider(accounts: BankAccount[] = [revolut]) {
@@ -141,4 +146,34 @@ Deno.test('a call without a signed-in user is rejected', async () => {
   const response = await handler(new Request('http://localhost/bank-link', { method: 'POST', body: '{}' }));
   assertEquals(response.status, 401);
   await response.body?.cancel();
+});
+
+Deno.test('a reconnect that returns no accounts keeps a working link active and its session', async () => {
+  const { store, provider, links, sessions, state, started, authStates, errors } = await begin();
+  await completeLink(store, provider, 'user-a', { state, code: 'code-1' });
+  await startLink(store, provider, 'user-a', { redirectUrl: 'x', linkId: started.link_id });
+  const empty = { ...provider, createSession: () => Promise.resolve({ sessionId: 'session-2', validUntil: '2027-06-01T00:00:00Z', accounts: [] }) };
+  const result = await completeLink(store, empty, 'user-a', { state: authStates[1], code: 'code-2' });
+  assertEquals(result.status, 'failed');
+  assertEquals(links.get(started.link_id!)!.status, 'active');
+  assertEquals(sessions.get(started.link_id!), 'session-secret');
+  assertEquals(errors.map((e) => e.message), [WHITELIST_MESSAGE]);
+});
+
+Deno.test('a failure after the bank session is created deletes that session instead of orphaning it', async () => {
+  const { store, provider, deleted, links, state, started } = await begin();
+  const broken = { ...store, putSession: () => Promise.reject(new Error('database unavailable')) };
+  const result = await completeLink(broken, provider, 'user-a', { state, code: 'code-1' });
+  assertEquals(result.status, 'failed');
+  assertEquals(deleted, ['session-secret']);
+  assertEquals(links.get(started.link_id!)!.status, 'failed');
+});
+
+Deno.test('a successful reconnect revokes the session it replaces', async () => {
+  const { store, provider, deleted, state, started, authStates } = await begin();
+  await completeLink(store, provider, 'user-a', { state, code: 'code-1' });
+  await startLink(store, provider, 'user-a', { redirectUrl: 'x', linkId: started.link_id });
+  const next = { ...provider, createSession: () => Promise.resolve({ sessionId: 'session-2', validUntil: '2027-06-01T00:00:00Z', accounts: [revolut] }) };
+  await completeLink(store, next, 'user-a', { state: authStates[1], code: 'code-2' });
+  assertEquals(deleted, ['session-secret']);
 });

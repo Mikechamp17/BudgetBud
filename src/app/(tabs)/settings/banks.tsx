@@ -120,6 +120,7 @@ export default function BanksScreen() {
   useFocusEffect(load);
 
   async function run(key: string, action: () => Promise<unknown>) {
+    if (busy) return;
     setBusy(key);
     setError(null);
     setMessage(null);
@@ -163,9 +164,21 @@ export default function BanksScreen() {
           </ThemedText>
           <View style={styles.row}>
             {link.status !== 'failed' ? (
-              <Button kind="secondary" label="Reconnect" busy={busy === 'connect'} onPress={() => connect({ linkId: link.id })} />
+              <Button
+                kind="secondary"
+                label="Reconnect"
+                busy={busy === 'connect'}
+                disabled={busy !== null}
+                onPress={() => connect({ linkId: link.id })}
+              />
             ) : null}
-            <Button kind="secondary" label="Remove" busy={busy === link.id} onPress={() => run(link.id, () => removeBankLink(link.id))} />
+            <Button
+              kind="secondary"
+              label="Remove"
+              busy={busy === link.id}
+              disabled={busy !== null}
+              onPress={() => run(link.id, () => removeBankLink(link.id))}
+            />
           </View>
         </Card>
       ))}
@@ -174,6 +187,7 @@ export default function BanksScreen() {
           kind="secondary"
           label="Sync now"
           busy={busy === 'sync'}
+          disabled={busy !== null}
           onPress={() =>
             run('sync', async () => {
               const r = await syncNow();
@@ -205,7 +219,7 @@ export default function BanksScreen() {
         ) : (
           <View style={styles.chips}>
             {banks.map((b) => (
-              <Chip key={b.name} label={b.name} selected={false} onPress={() => connect({ bank: b })} />
+              <Chip key={b.name} label={b.name} selected={false} onPress={() => busy === null && connect({ bank: b })} />
             ))}
           </View>
         )}
