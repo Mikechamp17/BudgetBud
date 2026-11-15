@@ -38,3 +38,13 @@ export const pendingImport = {
     pending = file;
   },
 };
+
+/** A picked PDF waiting for upload and review. */
+export type PendingPdf = { name: string; read: () => Promise<ArrayBuffer> };
+let pendingPdfFile: PendingPdf | null = null;
+export const pendingPdf = {
+  get: () => pendingPdfFile,
+  set: (file: PendingPdf | null) => {
+    pendingPdfFile = file;
+  },
+};

@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, ErrorText, Screen } from '@/components/ui/kit';
-import { fileKind, nextStep, pendingImport, type Account } from '@/lib/import-flow';
+import { fileKind, nextStep, pendingImport, pendingPdf, type Account } from '@/lib/import-flow';
 import { listAccounts } from '@/lib/imports';
 
 async function readPickedFile(asset: DocumentPicker.DocumentPickerAsset) {
@@ -14,6 +14,14 @@ async function readPickedFile(asset: DocumentPicker.DocumentPickerAsset) {
     return asset.file.text();
   }
   return new File(asset.uri).text();
+}
+
+async function readPickedBytes(asset: DocumentPicker.DocumentPickerAsset): Promise<ArrayBuffer> {
+  if (Platform.OS === 'web' && asset.file) {
+    return asset.file.arrayBuffer();
+  }
+  const bytes = await new File(asset.uri).bytes();
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 export default function ImportScreen() {
@@ -43,9 +51,14 @@ export default function ImportScreen() {
       const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
       if (result.canceled) return;
       const asset = result.assets[0];
+      if (asset.name.toLowerCase().endsWith('.pdf')) {
+        pendingPdf.set({ name: asset.name, read: () => readPickedBytes(asset) });
+        router.push({ pathname: '/import/pdf-review', params: { accountId: account.id } });
+        return;
+      }
       const kind = fileKind(asset.name);
       if (!kind) {
-        setError('Choose a CSV or OFX file. PDF statements come later.');
+        setError('Choose a CSV, OFX, or PDF statement.');
         return;
       }
       const file = { name: asset.name, kind, text: await readPickedFile(asset) };
@@ -60,7 +73,7 @@ export default function ImportScreen() {
 
   return (
     <Screen>
-      <ThemedText>Upload a CSV or OFX statement. Purchases you already have are merged, not doubled.</ThemedText>
+      <ThemedText>Upload a CSV, OFX, or PDF statement. Purchases you already have are merged, not doubled.</ThemedText>
       <Card>
         <ThemedText type="smallBold">Account</ThemedText>
         {accounts === null ? <ThemedText themeColor="textSecondary">Loading accounts…</ThemedText> : null}

@@ -1,7 +1,8 @@
 // Supabase calls for statement imports.
 import type { ColumnMapping } from './parsers/csv';
 import type { SourceRecord } from './parsers/types';
-import type { Account, PendingFile } from './import-flow';
+import type { Account } from './import-flow';
+import type { RangeResult } from './pdf-review';
 import { supabase } from './supabase';
 
 export type IngestResult = { created: number; merged: number; skipped: number };
@@ -51,10 +52,18 @@ export async function saveMapping(accountId: string, mapping: ColumnMapping) {
  * Creates an import, sends the records to ingest, then asks the sorter to categorize new merchants.
  * Sorting failures are ignored here: uncategorized merchants are retried on the next run.
  */
-export async function runImport(account: Account, file: PendingFile, records: SourceRecord[]): Promise<IngestResult> {
+export type ImportSource = { kind: 'csv' | 'ofx' | 'pdf'; name: string; storagePath?: string };
+
+export async function runImport(account: Account, file: ImportSource, records: SourceRecord[]): Promise<IngestResult> {
   const { data: created, error } = await supabase
     .from('imports')
-    .insert({ user_id: await userId(), financial_account_id: account.id, kind: file.kind, file_name: file.name })
+    .insert({
+      user_id: await userId(),
+      financial_account_id: account.id,
+      kind: file.kind,
+      file_name: file.name,
+      storage_path: file.storagePath ?? null,
+    })
     .select('id')
     .single();
   if (error) throw error;
@@ -65,4 +74,42 @@ export async function runImport(account: Account, file: PendingFile, records: So
   if (ingestError) throw ingestError;
   supabase.functions.invoke('categorize-merchants', { body: {} }).catch(() => undefined);
   return data as IngestResult;
+}
+
+/** Uploads a file into the user's own folder of a private bucket and returns its path. */
+export async function uploadToBucket(bucket: 'statements' | 'receipts', name: string, body: ArrayBuffer, contentType: string) {
+  const safeName = name.replace(/[^\w.-]+/g, '_');
+  const path = `${await userId()}/${Date.now()}-${safeName}`;
+  const { error } = await supabase.storage.from(bucket).upload(path, body, { contentType, upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+async function functionError(error: unknown) {
+  const context = (error as { context?: Response }).context;
+  if (context && typeof context.json === 'function') {
+    const body = await context.json().catch(() => null);
+    if (body?.error) return new Error(body.error);
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+export async function extractStatementRange(path: string, pageStart: number): Promise<RangeResult> {
+  const { data, error } = await supabase.functions.invoke('extract-document', {
+    body: { kind: 'statement', path, page_start: pageStart },
+  });
+  if (error) throw await functionError(error);
+  return data as RangeResult;
+}
+
+export async function extractReceipt(path: string) {
+  const { data, error } = await supabase.functions.invoke('extract-document', { body: { kind: 'receipt', path } });
+  if (error) throw await functionError(error);
+  return data.receipt as {
+    merchant: string;
+    date: string;
+    currency: string;
+    total_minor: number | null;
+    items: { position: number; description: string; quantity: number; amount_minor: number | null }[];
+  };
 }

@@ -7,6 +7,7 @@ export default function ImportLayout() {
       <Stack.Screen name="new-account" options={{ title: 'New account' }} />
       <Stack.Screen name="map-columns" options={{ title: 'Match columns' }} />
       <Stack.Screen name="preview" options={{ title: 'Preview' }} />
+      <Stack.Screen name="pdf-review" options={{ title: 'Review PDF' }} />
     </Stack>
   );
 }
