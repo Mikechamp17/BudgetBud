@@ -17,10 +17,10 @@ PSQL=(psql -h /tmp -p "$PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -q)
 for f in "$ROOT"/supabase/migrations/*.sql; do "${PSQL[@]}" -f "$f" >/dev/null; done
 "${PSQL[@]}" -c 'create extension if not exists pgtap with schema extensions' >/dev/null
 fail=0
-for t in "$ROOT"/supabase/tests/*.test.sql; do
+for t in "$ROOT"/supabase/tests/${TEST_GLOB:-*}.test.sql; do
   echo "# $(basename "$t")"
   out="$("${PSQL[@]}" -X -t -A -c 'set search_path = public, extensions' -f "$t" 2>&1)" || fail=1
   echo "$out"
-  grep -q '^not ok' <<<"$out" && fail=1
+  grep -qE '^not ok|^# Looks like' <<<"$out" && fail=1
 done
 exit $fail
