@@ -437,3 +437,6 @@ verify_jwt = false
 
 [functions.bank-link]
 verify_jwt = false
+
+[functions.bank-sync]
+verify_jwt = false
