@@ -20,6 +20,14 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="purchases">
+        <NativeTabs.Trigger.Label>Purchases</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          src={require('@/assets/images/tabIcons/explore.png')}
+          renderingMode="template"
+        />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="import">
         <NativeTabs.Trigger.Label>Import</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon

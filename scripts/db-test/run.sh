@@ -14,7 +14,11 @@ if [ "$(id -u)" = 0 ]; then chown postgres "$DATA"; RUNAS=(runuser -u postgres -
 trap '"${RUNAS[@]}" "$PGBIN/pg_ctl" -D "$DATA" -m immediate stop >/dev/null; rm -rf "$DATA"' EXIT
 PSQL=(psql -h /tmp -p "$PORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -q)
 "${PSQL[@]}" -f "$ROOT/scripts/db-test/supabase-shim.sql" >/dev/null
-for f in "$ROOT"/supabase/migrations/*.sql; do "${PSQL[@]}" -f "$f" >/dev/null; done
+for f in "$ROOT"/supabase/migrations/*.sql; do
+  # pg_cron, pg_net, and Vault exist only on Supabase. Scheduling migrations are skipped here.
+  case "$f" in *_cron.sql) echo "# skipped $(basename "$f") (needs pg_cron, pg_net, and Vault)"; continue ;; esac
+  "${PSQL[@]}" -f "$f" >/dev/null
+done
 "${PSQL[@]}" -c 'create extension if not exists pgtap with schema extensions' >/dev/null
 fail=0
 for t in "$ROOT"/supabase/tests/${TEST_GLOB:-*}.test.sql; do

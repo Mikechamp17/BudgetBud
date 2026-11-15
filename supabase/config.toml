@@ -428,3 +428,6 @@ enabled = true
 # Edge Functions check the caller themselves: a user session, or the secret key for server jobs.
 [functions.categorize-merchants]
 verify_jwt = false
+
+[functions.fx-rates]
+verify_jwt = false

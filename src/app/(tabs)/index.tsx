@@ -1,98 +1,114 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Accent, Button, Card, ErrorText, Screen } from '@/components/ui/kit';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { formatMoney } from '@/lib/money';
+import {
+  compareCategories,
+  fetchMonthlySpending,
+  monthLabel,
+  monthStart,
+  percentChange,
+  shiftMonth,
+  type MonthlySpending,
+} from '@/lib/spending';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+export default function DashboardScreen() {
+  const theme = useTheme();
+  const [month, setMonth] = useState(() => monthStart(new Date()));
+  const [data, setData] = useState<{ current: MonthlySpending; previous: MonthlySpending } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all([fetchMonthlySpending(month), fetchMonthlySpending(shiftMonth(month, -1))])
+        .then(([current, previous]) => active && setData({ current, previous }))
+        .catch((e: Error) => active && setError(e.message));
+      return () => {
+        active = false;
+      };
+    }, [month]),
   );
-}
 
-export default function HomeScreen() {
+  const current = data?.current.month === month ? data.current : null;
+  const rows = current && data ? compareCategories(current.categories, data.previous.categories) : [];
+  const largest = Math.max(1, ...rows.map((r) => r.total_minor));
+  const change = current && data ? percentChange(current.total_minor, data.previous.total_minor) : null;
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
+    <Screen>
+      <View style={styles.switcher}>
+        <Button kind="secondary" label="‹" onPress={() => setMonth(shiftMonth(month, -1))} />
+        <ThemedText type="subtitle" style={styles.monthLabel}>
+          {monthLabel(month)}
         </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        <Button kind="secondary" label="›" onPress={() => setMonth(shiftMonth(month, 1))} />
+      </View>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {!current ? <ThemedText themeColor="textSecondary">Loading…</ThemedText> : null}
+      {current && rows.length === 0 ? (
+        <Card>
+          <ThemedText>No spending this month.</ThemedText>
+          <Link href="/import">
+            <ThemedText type="linkPrimary">Import a statement</ThemedText>
+          </Link>
+        </Card>
+      ) : null}
+      {current && rows.length > 0 ? (
+        <>
+          <Card>
+            <ThemedText type="small" themeColor="textSecondary">
+              Spent this month
+            </ThemedText>
+            <ThemedText type="title">{formatMoney(current.total_minor, 'EUR')}</ThemedText>
+            {change !== null ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                {change >= 0 ? '+' : ''}
+                {change}% against {monthLabel(shiftMonth(month, -1))}
+              </ThemedText>
+            ) : null}
+          </Card>
+          {current.unconverted > 0 ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              {current.unconverted} purchases in other currencies have no exchange rate yet and are not counted.
+            </ThemedText>
+          ) : null}
+          {rows.map((row) => (
+            <Link
+              key={row.category_id ?? 'none'}
+              href={{ pathname: '/purchases', params: { month, categoryId: row.category_id ?? '' } }}
+              asChild>
+              <Pressable style={styles.row}>
+                <View style={styles.rowText}>
+                  <ThemedText style={styles.flex}>{row.name ?? 'Uncategorized'}</ThemedText>
+                  <ThemedText>{formatMoney(row.total_minor, 'EUR')}</ThemedText>
+                </View>
+                <View style={[styles.track, { backgroundColor: theme.backgroundElement }]}>
+                  <View style={[styles.bar, { width: `${(row.total_minor / largest) * 100}%` }]} />
+                </View>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {row.change === null ? 'New this month' : `${row.change >= 0 ? '+' : ''}${row.change}% vs last month`}
+                </ThemedText>
+              </Pressable>
+            </Link>
+          ))}
+        </>
+      ) : null}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  switcher: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  monthLabel: { flex: 1, textAlign: 'center' },
+  row: { gap: Spacing.one, paddingVertical: Spacing.two },
+  rowText: { flexDirection: 'row', gap: Spacing.two },
+  flex: { flex: 1 },
+  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  bar: { height: 8, borderRadius: 4, backgroundColor: Accent },
 });
