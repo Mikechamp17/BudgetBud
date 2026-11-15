@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Accent, Button, Card, ErrorText, Screen } from '@/components/ui/kit';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { connectBank, linksNeedingAttention, listLinks, type BankLink } from '@/lib/banks';
 import { formatMoney } from '@/lib/money';
 import {
   compareCategories,
@@ -22,6 +23,7 @@ export default function DashboardScreen() {
   const [month, setMonth] = useState(() => monthStart(new Date()));
   const [data, setData] = useState<{ current: MonthlySpending; previous: MonthlySpending } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [links, setLinks] = useState<BankLink[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -29,6 +31,9 @@ export default function DashboardScreen() {
       Promise.all([fetchMonthlySpending(month), fetchMonthlySpending(shiftMonth(month, -1))])
         .then(([current, previous]) => active && setData({ current, previous }))
         .catch((e: Error) => active && setError(e.message));
+      listLinks()
+        .then((l) => active && setLinks(l))
+        .catch(() => undefined);
       return () => {
         active = false;
       };
@@ -50,6 +55,19 @@ export default function DashboardScreen() {
         <Button kind="secondary" label="›" onPress={() => setMonth(shiftMonth(month, 1))} />
       </View>
       {error ? <ErrorText>{error}</ErrorText> : null}
+      {linksNeedingAttention(links).map(({ link, health }) => (
+        <Card key={link.id}>
+          <ThemedText type="smallBold">
+            {health.state === 'expired'
+              ? `${link.institution_name} has stopped syncing`
+              : `${link.institution_name} stops syncing in ${health.daysLeft} days`}
+          </ThemedText>
+          <Button
+            label="Reconnect"
+            onPress={() => connectBank({ linkId: link.id }).catch((e: Error) => setError(e.message))}
+          />
+        </Card>
+      ))}
       {!current ? <ThemedText themeColor="textSecondary">Loading…</ThemedText> : null}
       {current && rows.length === 0 ? (
         <Card>
