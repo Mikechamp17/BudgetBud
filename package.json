@@ -52,7 +52,8 @@
     "lint": "expo lint",
     "test": "jest",
     "typecheck": "tsc --noEmit",
-    "test:db": "scripts/db-test/run.sh"
+    "test:db": "scripts/db-test/run.sh",
+    "test:functions": "cd supabase/functions && deno test --allow-env --allow-read"
   },
   "private": true
 }
