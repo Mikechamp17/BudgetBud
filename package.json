@@ -34,6 +34,7 @@
     "eslint-config-expo": "~58.0.0",
     "jest": "^30.5.2",
     "jest-expo": "~58.0.0",
+    "supabase": "^3.1.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -43,7 +44,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "scripts/db-test/run.sh"
   },
   "private": true
 }
