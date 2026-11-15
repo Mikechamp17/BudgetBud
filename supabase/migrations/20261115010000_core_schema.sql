@@ -21,6 +21,7 @@ create type public.receipt_status as enum ('pending', 'matched');
 create table public.profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   display_name text,
+  home_currency char(3) not null default 'EUR' check (home_currency ~ '^[A-Z]{3}$'),
   created_at timestamptz not null default now()
 );
 alter table public.profiles enable row level security;
