@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(18);
+select plan(20);
 
 -- Fixtures, created as the database owner.
 insert into auth.users (id, email) values
@@ -74,6 +74,13 @@ select is(
 select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('statements', '00000000-0000-0000-0000-00000000000b/evil.csv')$$,
   '42501', null, 'User A cannot upload into user B''s storage folder');
+
+select throws_ok(
+  $$update public.financial_accounts set provider_account_uid = 'stolen-uid' where id = '10000000-0000-0000-0000-00000000000a'$$,
+  '42501', null, 'User A cannot set bank-link columns on their own account');
+select throws_ok(
+  $$insert into public.financial_accounts (user_id, name, provider_account_uid) values ('00000000-0000-0000-0000-00000000000a', 'x', 'stolen-uid')$$,
+  '42501', null, 'User A cannot create an account carrying bank-link columns');
 
 -- Service role.
 reset role;

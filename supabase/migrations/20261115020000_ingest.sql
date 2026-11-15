@@ -123,6 +123,9 @@ begin
     raise exception 'import % not found', p_import_id using errcode = 'P0002';
   end if;
 
+  -- One ingest at a time per account, so concurrent imports cannot both create the same purchase.
+  perform pg_advisory_xact_lock(hashtextextended(v_import.financial_account_id::text, 0));
+
   v_kind := case v_import.kind when 'bank_sync' then 'bank' else v_import.kind::text end::public.source_kind;
   -- The channel for KTD5: the bank account feed for bank records, the uploaded file otherwise.
   v_channel := case when v_kind = 'bank'
