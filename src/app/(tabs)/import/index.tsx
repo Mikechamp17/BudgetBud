@@ -87,6 +87,12 @@ export default function ImportScreen() {
       </Card>
       {error ? <ErrorText>{error}</ErrorText> : null}
       <Button label="Choose statement file" onPress={pickFile} busy={busy} disabled={!accountId} />
+      <Card>
+        <ThemedText type="smallBold">Receipts</ThemedText>
+        <ThemedText themeColor="textSecondary">A receipt adds item details to its purchase. It never adds a purchase.</ThemedText>
+        <Button kind="secondary" label="Add receipt" onPress={() => router.push('/receipt/capture')} />
+        <Button kind="secondary" label="See receipts" onPress={() => router.push('/import/receipts')} />
+      </Card>
     </Screen>
   );
 }

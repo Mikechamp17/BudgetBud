@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, ErrorText, Screen } from '@/components/ui/kit';
 import { Spacing } from '@/constants/theme';
 import { formatMoney } from '@/lib/money';
+import { receiptsForPurchase, type Receipt } from '@/lib/receipts';
 import {
   dismissNewPlace,
   getPurchase,
@@ -25,6 +26,7 @@ export default function PurchaseScreen() {
   const [eur, setEur] = useState<number | null>(null);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
 
   const load = useCallback(() => {
     getPurchase(id)
@@ -35,6 +37,7 @@ export default function PurchaseScreen() {
         }
       })
       .catch((e: Error) => setError(e.message));
+    receiptsForPurchase(id).then(setReceipts).catch((e: Error) => setError(e.message));
   }, [id]);
 
   useEffect(() => {
@@ -90,6 +93,26 @@ export default function PurchaseScreen() {
           />
         ))}
       </View>
+      <ThemedText type="smallBold">Receipt</ThemedText>
+      {receipts.map((r) => (
+        <Card key={r.id}>
+          {r.receipt_items?.map((item) => (
+            <View key={item.id} style={styles.item}>
+              <ThemedText style={styles.flex}>{item.description}</ThemedText>
+              {item.amount_minor !== null && r.currency ? (
+                <ThemedText>{formatMoney(item.amount_minor, r.currency)}</ThemedText>
+              ) : null}
+            </View>
+          ))}
+        </Card>
+      ))}
+      {receipts.length === 0 ? (
+        <Button
+          kind="secondary"
+          label="Attach receipt"
+          onPress={() => router.push({ pathname: '/receipt/capture', params: { purchaseId: purchase.id } })}
+        />
+      ) : null}
       <ThemedText type="smallBold">Sources</ThemedText>
       {purchase.source_records.map((s) => (
         <Card key={s.id}>
@@ -112,4 +135,6 @@ export default function PurchaseScreen() {
 
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  item: { flexDirection: 'row', gap: Spacing.two },
+  flex: { flex: 1 },
 });
