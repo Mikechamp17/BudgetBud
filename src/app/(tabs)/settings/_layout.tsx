@@ -5,6 +5,7 @@ export default function SettingsLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="banks" options={{ title: 'Banks' }} />
+      <Stack.Screen name="account" options={{ title: 'Account' }} />
     </Stack>
   );
 }

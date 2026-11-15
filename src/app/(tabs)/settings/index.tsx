@@ -14,6 +14,7 @@ export default function SettingsScreen() {
       <ThemedText themeColor="textSecondary">Signed in as {session?.user.email}</ThemedText>
       <Button kind="secondary" label="Banks" onPress={() => router.push('/settings/banks')} />
       <Button kind="secondary" label="Sign out" onPress={() => supabase.auth.signOut()} />
+      <Button kind="secondary" label="Delete account" onPress={() => router.push('/settings/account')} />
     </Screen>
   );
 }
