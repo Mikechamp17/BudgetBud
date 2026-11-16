@@ -1,7 +1,7 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 
 import type { BankProvider } from '../_shared/bank/provider.ts';
-import { type DeleteDeps, deleteAccount, handler } from './index.ts';
+import { type DeleteDeps, deleteAccount, handler } from './handler.ts';
 
 function world() {
   const users = new Set(['user-a', 'user-b']);

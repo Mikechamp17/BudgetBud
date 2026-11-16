@@ -5,8 +5,20 @@ export function secretKey() {
   return Deno.env.get('SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 }
 
+/** Lets the web app call functions from the browser. */
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 export function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+}
+
+/** Answers the browser's CORS preflight request. */
+export function withCors(handler: (req: Request) => Promise<Response>) {
+  return (req: Request) => (req.method === 'OPTIONS' ? new Response('ok', { headers: corsHeaders }) : handler(req));
 }
 
 /** Returns the user ID the call acts for, or an error Response. */

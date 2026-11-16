@@ -2,7 +2,7 @@ import { assertEquals, assertFalse } from 'jsr:@std/assert@1';
 
 import { type Category, categorizeUser, type Merchant, type SortStore } from '../_shared/categorize.ts';
 import { groqSorter, type SortMerchants } from '../_shared/groq.ts';
-import { handler } from './index.ts';
+import { handler } from './handler.ts';
 
 const categories: Category[] = [
   { id: 'c-groceries', name: 'Groceries' },
@@ -144,4 +144,12 @@ Deno.test('a merchant Groq answers Uncategorized is not sent again', async () =>
   await categorizeUser(store, sort, 'user-a');
   assertEquals(calls, 1);
   assertEquals(rules, []);
+});
+
+Deno.test('browser preflight requests get CORS headers', async () => {
+  const { withCors } = await import('../_shared/auth.ts');
+  const response = await withCors(handler)(new Request('http://localhost/categorize-merchants', { method: 'OPTIONS' }));
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get('Access-Control-Allow-Origin'), '*');
+  await response.body?.cancel();
 });

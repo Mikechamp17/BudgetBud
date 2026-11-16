@@ -3,7 +3,7 @@ import { assertEquals, assertRejects } from 'jsr:@std/assert@1';
 import { PDFDocument } from 'npm:pdf-lib@1.17.1';
 
 import type { ContentBlock, ModelReply } from '../_shared/claude.ts';
-import { type Deps, extractDocument, ExtractError, handler } from './index.ts';
+import { type Deps, extractDocument, ExtractError, handler } from './handler.ts';
 
 async function pdfWithPages(count: number) {
   const doc = await PDFDocument.create();

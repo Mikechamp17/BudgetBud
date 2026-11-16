@@ -1,7 +1,7 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 
 import type { BankAccount, BankProvider } from '../_shared/bank/provider.ts';
-import { handler } from './index.ts';
+import { handler } from './handler.ts';
 import { completeLink, type Link, type LinkStore, removeLink, startLink, WHITELIST_MESSAGE } from './links.ts';
 
 const revolut: BankAccount = { providerAccountId: 'hash-rev', uid: 'uid-rev', name: 'Revolut EUR', currency: 'EUR' };

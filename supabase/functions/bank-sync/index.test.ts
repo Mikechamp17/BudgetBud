@@ -1,7 +1,7 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 
 import { type BankProvider, type BankRecord, SessionExpiredError } from '../_shared/bank/provider.ts';
-import { handler } from './index.ts';
+import { handler } from './handler.ts';
 import { type SyncStore, syncLinks, syncStart } from './sync.ts';
 
 const lidl: BankRecord = { provider_transaction_id: 't1', booking_date: '2026-03-03', amount_minor: -4217, currency: 'EUR', description: 'LIDL', raw: {} };

@@ -1,6 +1,6 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 
-import { handler, HISTORY_START, HISTORY_URL, loadRates, parseEcbXml, type Rate, RECENT_URL, type RateStore } from './index.ts';
+import { handler, HISTORY_START, HISTORY_URL, loadRates, parseEcbXml, type Rate, RECENT_URL, type RateStore } from './handler.ts';
 
 // A recorded excerpt of the ECB reference-rate file.
 const recordedXml = `<?xml version="1.0" encoding="UTF-8"?>
