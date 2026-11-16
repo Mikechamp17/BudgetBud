@@ -1,0 +1,122 @@
+import { parseAmountToMinor } from '../money';
+import { parseDate, type DateFormat } from './dates';
+import type { ParseResult, SourceRecord } from './types';
+
+export type CsvTable = { headers: string[]; rows: string[][] };
+
+/** Which columns hold what. Saved on the financial account after the first upload (KTD14). */
+export type ColumnMapping = {
+  date: string;
+  description: string;
+  amount?: string;
+  debit?: string;
+  credit?: string;
+  currency?: string;
+  dateFormat: DateFormat;
+  decimalSeparator: '.' | ',';
+};
+
+function detectDelimiter(firstLine: string) {
+  const counts = [',', ';', '\t'].map((d) => [d, firstLine.split(d).length] as const);
+  return counts.sort((a, b) => b[1] - a[1])[0][0];
+}
+
+/** Splits CSV text into a header row and data rows. Handles quoted fields and ; or tab delimiters. */
+export function parseCsv(text: string): CsvTable {
+  const clean = text.replace(/^﻿/, '');
+  if (!clean.trim()) {
+    return { headers: [], rows: [] };
+  }
+  const delimiter = detectDelimiter(clean.split(/\r?\n/, 1)[0]);
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    if (quoted) {
+      if (ch === '"' && clean[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === delimiter) {
+      row.push(field);
+      field = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && clean[i + 1] === '\n') i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += ch;
+    }
+  }
+  if (field || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  const nonEmpty = rows.filter((r) => r.some((f) => f.trim()));
+  const [headers = [], ...data] = nonEmpty.map((r) => r.map((f) => f.trim()));
+  return { headers, rows: data };
+}
+
+/** Suggests a mapping from common header names, for the first upload's mapping screen. */
+export function guessMapping(headers: string[]): Partial<ColumnMapping> {
+  const find = (...names: RegExp[]) => headers.find((h) => names.some((n) => n.test(h)));
+  return {
+    date: find(/^started date$/i, /date/i, /datum/i),
+    description: find(/description/i, /details/i, /payee/i, /narrative/i, /beschreibung/i),
+    amount: find(/^amount$/i, /betrag/i, /amount/i),
+    debit: find(/debit/i, /paid out/i, /money out/i),
+    credit: find(/credit/i, /paid in/i, /money in/i),
+    currency: find(/^currency$/i, /währung/i),
+  };
+}
+
+/** Turns mapped CSV rows into records. A bad row becomes an error and the rest still import. */
+export function buildCsvRecords(table: CsvTable, mapping: ColumnMapping, accountCurrency: string): ParseResult {
+  const col = (name?: string) => (name ? table.headers.indexOf(name) : -1);
+  const dateCol = col(mapping.date);
+  const descCol = col(mapping.description);
+  const amountCol = col(mapping.amount);
+  const debitCol = col(mapping.debit);
+  const creditCol = col(mapping.credit);
+  const currencyCol = col(mapping.currency);
+
+  const records: SourceRecord[] = [];
+  const errors: ParseResult['errors'] = [];
+  table.rows.forEach((cells, index) => {
+    const row = index + 2; // Line number in the file, counting the header.
+    const dateText = cells[dateCol] ?? '';
+    const date = parseDate(dateText, mapping.dateFormat);
+    if (!date) {
+      errors.push({ row, message: `Unreadable date "${dateText}"` });
+      return;
+    }
+    const currency = ((currencyCol >= 0 && cells[currencyCol]) || accountCurrency).trim().toUpperCase();
+    let amount: number | null;
+    if (amountCol >= 0) {
+      amount = parseAmountToMinor(cells[amountCol] ?? '', mapping.decimalSeparator, currency);
+    } else {
+      const debitText = (cells[debitCol] ?? '').trim();
+      const creditText = (cells[creditCol] ?? '').trim();
+      const debit = debitText ? parseAmountToMinor(debitText, mapping.decimalSeparator, currency) : 0;
+      const credit = creditText ? parseAmountToMinor(creditText, mapping.decimalSeparator, currency) : 0;
+      amount = debit === null || credit === null ? null : Math.abs(credit) - Math.abs(debit);
+    }
+    if (amount === null) {
+      errors.push({ row, message: 'Unreadable amount' });
+      return;
+    }
+    const raw = Object.fromEntries(table.headers.map((h, i) => [h, cells[i] ?? '']));
+    records.push({ booking_date: date, amount_minor: amount, currency, description: (cells[descCol] ?? '').trim(), raw });
+  });
+  return { records, errors };
+}

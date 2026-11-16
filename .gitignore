@@ -1,0 +1,23 @@
+.context/compound-engineering/
+
+# Expo app
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+*.tsbuildinfo
+.kotlin/
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+/ios
+/android
+.env
+.env*.local
+npm-debug.*
+.DS_Store
