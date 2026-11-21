@@ -3,9 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Chip, ErrorText, Screen } from '@/components/ui/kit';
+import { Accent, Button, Chip, ErrorText, Screen } from '@/components/ui/kit';
 import { Spacing } from '@/constants/theme';
 import { listAccounts } from '@/lib/imports';
+import { shortDate } from '@/lib/dates';
 import { formatMoney } from '@/lib/money';
 import {
   listCategories,
@@ -87,12 +88,10 @@ export default function PurchasesScreen() {
         <Link key={p.id} href={`/purchase/${p.id}`} asChild>
           <Pressable style={styles.row}>
             <View style={styles.flex}>
-              <ThemedText numberOfLines={1}>
-                {p.merchants?.display_name ?? p.description}
-                {p.is_new_place ? '  • New place' : ''}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {p.booking_date} · {p.categories?.name ?? 'Uncategorized'}
+              <ThemedText numberOfLines={1}>{p.merchants?.display_name ?? p.description}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                {shortDate(p.booking_date)} · {p.categories?.name ?? 'Uncategorized'}
+                {p.is_new_place ? <ThemedText type="small" style={{ color: Accent }}>{'  · New place'}</ThemedText> : null}
               </ThemedText>
             </View>
             <ThemedText>{formatMoney(p.amount_minor, p.currency)}</ThemedText>
