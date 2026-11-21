@@ -8,7 +8,7 @@ import { Spacing } from '@/constants/theme';
 import { pendingImport } from '@/lib/import-flow';
 import { saveMapping } from '@/lib/imports';
 import { guessMapping, parseCsv, type ColumnMapping } from '@/lib/parsers/csv';
-import { DATE_FORMATS, type DateFormat } from '@/lib/parsers/dates';
+import { DATE_FORMATS, detectDateFormat, type DateFormat } from '@/lib/parsers/dates';
 
 type Field = 'date' | 'description' | 'amount' | 'debit' | 'credit' | 'currency';
 const FIELDS: { key: Field; label: string; optional?: boolean }[] = [
@@ -25,11 +25,14 @@ export default function MapColumnsScreen() {
   const { accountId } = useLocalSearchParams<{ accountId: string }>();
   const file = pendingImport.get();
   const table = useMemo(() => parseCsv(file?.text ?? ''), [file]);
-  const [mapping, setMapping] = useState<Partial<ColumnMapping>>(() => ({
-    ...guessMapping(table.headers),
-    dateFormat: 'YYYY-MM-DD',
-    decimalSeparator: '.',
-  }));
+  const samplesFor = (column?: string) => {
+    const index = column ? table.headers.indexOf(column) : -1;
+    return index < 0 ? [] : table.rows.map((r) => r[index] ?? '');
+  };
+  const [mapping, setMapping] = useState<Partial<ColumnMapping>>(() => {
+    const guess = guessMapping(table.headers);
+    return { ...guess, dateFormat: detectDateFormat(samplesFor(guess.date)), decimalSeparator: '.' };
+  });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +44,13 @@ export default function MapColumnsScreen() {
     );
   }
 
-  const set = (patch: Partial<ColumnMapping>) => setMapping((m) => ({ ...m, ...patch }));
+  const set = (patch: Partial<ColumnMapping>) =>
+    setMapping((m) => ({
+      ...m,
+      ...patch,
+      // Choosing the date column also picks the date format that reads it.
+      ...(patch.date ? { dateFormat: detectDateFormat(samplesFor(patch.date)) } : {}),
+    }));
 
   async function save() {
     const hasAmount = mapping.amount || mapping.debit || mapping.credit;

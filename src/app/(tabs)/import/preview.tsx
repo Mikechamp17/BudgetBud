@@ -74,11 +74,23 @@ export default function PreviewScreen() {
             {preview.records.length} transactions ready
             {preview.errors.length ? `, ${preview.errors.length} rows could not be read` : ''}
           </ThemedText>
-          {preview.errors.map((e) => (
+          {preview.errors.slice(0, 3).map((e) => (
             <ErrorText key={e.row}>
               Row {e.row}: {e.message}
             </ErrorText>
           ))}
+          {preview.errors.length > 3 ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              and {preview.errors.length - 3} more rows.
+            </ThemedText>
+          ) : null}
+          {file.kind === 'csv' && preview.errors.length > 0 ? (
+            <Button
+              kind="secondary"
+              label="Match columns again"
+              onPress={() => router.replace({ pathname: '/import/map-columns', params: { accountId } })}
+            />
+          ) : null}
           <Button label={`Save ${preview.records.length} transactions`} onPress={save} busy={busy} disabled={!preview.records.length} />
           {preview.records.slice(0, 100).map((r, i) => (
             <View key={i} style={styles.row}>

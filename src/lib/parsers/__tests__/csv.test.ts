@@ -97,3 +97,15 @@ describe('statement with a summary section before the transactions', () => {
     expect(guessMapping(table.headers)).toMatchObject({ date: 'Started Date', amount: 'Amount', currency: 'Currency' });
   });
 });
+
+describe('dates written with month names', () => {
+  it('reads "12 Nov 2026" and picks that format from the rows', () => {
+    const { parseDate, detectDateFormat } = jest.requireActual('../dates');
+    expect(parseDate('12 Nov 2026', 'DD MMM YYYY')).toBe('2026-11-12');
+    expect(parseDate('3 September 2026', 'DD MMM YYYY')).toBe('2026-09-03');
+    expect(parseDate('31 Feb 2026', 'DD MMM YYYY')).toBeNull();
+    expect(detectDateFormat(['12 Nov 2026', '13 Nov 2026'])).toBe('DD MMM YYYY');
+    expect(detectDateFormat(['2026-11-03 12:14:02'])).toBe('YYYY-MM-DD');
+    expect(detectDateFormat(['13/11/2026', '01/11/2026'])).toBe('DD/MM/YYYY');
+  });
+});

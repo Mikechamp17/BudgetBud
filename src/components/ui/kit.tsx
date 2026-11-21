@@ -47,7 +47,7 @@ export function Button({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: primary ? Accent : theme.backgroundElement, opacity: pressed || busy || disabled ? 0.6 : 1 },
+        { backgroundColor: primary ? Accent : theme.backgroundSelected, opacity: pressed || busy || disabled ? 0.6 : 1 },
       ]}>
       {busy ? (
         <ActivityIndicator color={primary ? '#fff' : theme.text} />
