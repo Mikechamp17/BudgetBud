@@ -1,13 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, ErrorText, Screen } from '@/components/ui/kit';
-import { Spacing } from '@/constants/theme';
+import { Button, Card, ErrorText, Screen } from '@/components/ui/kit';
+import { Select } from '@/components/ui/select';
 import { pendingImport } from '@/lib/import-flow';
 import { saveMapping } from '@/lib/imports';
-import { guessMapping, parseCsv, type ColumnMapping } from '@/lib/parsers/csv';
+import { formatMoney } from '@/lib/money';
+import { buildCsvRecords, guessMapping, parseCsv, type ColumnMapping } from '@/lib/parsers/csv';
 import { DATE_FORMATS, detectDateFormat, type DateFormat } from '@/lib/parsers/dates';
 
 type Field = 'date' | 'description' | 'amount' | 'debit' | 'credit' | 'currency';
@@ -72,44 +72,67 @@ export default function MapColumnsScreen() {
     }
   }
 
+  const NONE = '__none__';
+  const sample = (column: string) => {
+    const value = table.rows.find((r) => r[table.headers.indexOf(column)])?.[table.headers.indexOf(column)];
+    return value ? `${column} (e.g. ${value.length > 24 ? `${value.slice(0, 24)}…` : value})` : column;
+  };
+  const columnOptions = (optional?: boolean) => [
+    ...(optional ? [{ value: NONE, label: 'None' }] : []),
+    ...table.headers.filter((h) => h).map((h) => ({ value: h, label: sample(h) })),
+  ];
+  // How the first transaction reads with the current choices, so mistakes show before saving.
+  const check =
+    mapping.date && mapping.description && (mapping.amount || mapping.debit || mapping.credit)
+      ? buildCsvRecords({ headers: table.headers, rows: table.rows.slice(0, 1) }, mapping as ColumnMapping, 'EUR')
+      : null;
+
   return (
     <Screen>
       <ThemedText>Match this file&apos;s columns once. The next upload for this account reuses it.</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        First row: {table.rows[0]?.join(' · ')}
-      </ThemedText>
-      {FIELDS.map((field) => (
-        <Card key={field.key}>
-          <ThemedText type="smallBold">{field.label}</ThemedText>
-          <View style={styles.row}>
-            {field.optional ? (
-              <Chip label="None" selected={!mapping[field.key]} onPress={() => set({ [field.key]: undefined })} />
-            ) : null}
-            {table.headers.map((h) => (
-              <Chip key={h} label={h} selected={mapping[field.key] === h} onPress={() => set({ [field.key]: h })} />
-            ))}
-          </View>
-        </Card>
-      ))}
       <Card>
-        <ThemedText type="smallBold">Date format</ThemedText>
-        <View style={styles.row}>
-          {DATE_FORMATS.map((f) => (
-            <Chip key={f} label={f} selected={mapping.dateFormat === f} onPress={() => set({ dateFormat: f as DateFormat })} />
-          ))}
-        </View>
-        <ThemedText type="smallBold">Decimal separator</ThemedText>
-        <View style={styles.row}>
-          <Chip label="1,234.56" selected={mapping.decimalSeparator === '.'} onPress={() => set({ decimalSeparator: '.' })} />
-          <Chip label="1.234,56" selected={mapping.decimalSeparator === ','} onPress={() => set({ decimalSeparator: ',' })} />
-        </View>
+        {FIELDS.map((field) => (
+          <Select
+            key={field.key}
+            label={field.label}
+            value={mapping[field.key] ?? (field.optional ? NONE : undefined)}
+            options={columnOptions(field.optional)}
+            onChange={(v) => set({ [field.key]: v === NONE ? undefined : v })}
+          />
+        ))}
+        <Select
+          label="Date format"
+          value={mapping.dateFormat}
+          options={DATE_FORMATS.map((f) => ({ value: f, label: f }))}
+          onChange={(v) => set({ dateFormat: v as DateFormat })}
+        />
+        <Select
+          label="Decimal separator"
+          value={mapping.decimalSeparator}
+          options={[
+            { value: '.', label: '1,234.56' },
+            { value: ',', label: '1.234,56' },
+          ]}
+          onChange={(v) => set({ decimalSeparator: v as '.' | ',' })}
+        />
       </Card>
+      {check ? (
+        <Card>
+          <ThemedText type="smallBold">First transaction reads as</ThemedText>
+          {check.records[0] ? (
+            <ThemedText>
+              {check.records[0].booking_date} · {check.records[0].description} ·{' '}
+              {formatMoney(check.records[0].amount_minor, check.records[0].currency)}
+            </ThemedText>
+          ) : (
+            <ErrorText>{check.errors[0]?.message ?? 'Not readable yet'}. Check the columns and date format.</ErrorText>
+          )}
+        </Card>
+      ) : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       <Button label="Save and preview" onPress={save} busy={busy} />
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-});
+
