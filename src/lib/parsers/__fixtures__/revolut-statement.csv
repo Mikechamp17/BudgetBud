@@ -1,0 +1,8 @@
+Current Accounts Summaries
+Product,Opening balance,Money out,Money in,Closing balance
+Current,1000.00,47.17,500.00,1452.83
+
+Transactions
+Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+CARD_PAYMENT,Current,2026-11-03 12:14:02,2026-11-04 09:01:44,Lidl,-42.17,0.00,EUR,COMPLETED,957.83
+TOPUP,Current,2026-11-10 11:00:00,2026-11-10 11:00:01,Top-Up by *1234,500.00,0.00,EUR,COMPLETED,1457.83

@@ -84,3 +84,16 @@ describe('empty file', () => {
     expect(table.rows).toEqual([]);
   });
 });
+
+describe('statement with a summary section before the transactions', () => {
+  const table = parseCsv(fixture('revolut-statement.csv'));
+
+  it('finds the transaction header row, not the title line', () => {
+    expect(table.headers).toContain('Started Date');
+    expect(table.rows).toHaveLength(2);
+  });
+
+  it('guesses the date, amount, and currency columns', () => {
+    expect(guessMapping(table.headers)).toMatchObject({ date: 'Started Date', amount: 'Amount', currency: 'Currency' });
+  });
+});

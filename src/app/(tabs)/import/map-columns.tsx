@@ -49,6 +49,10 @@ export default function MapColumnsScreen() {
       setError('Choose the date, description, and amount columns.');
       return;
     }
+    if (mapping.date === mapping.description || mapping.date === mapping.amount || mapping.description === mapping.amount) {
+      setError('Date, description, and amount must be different columns.');
+      return;
+    }
     setBusy(true);
     try {
       await saveMapping(accountId, mapping as ColumnMapping);

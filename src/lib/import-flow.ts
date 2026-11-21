@@ -1,5 +1,5 @@
 // The statement-file import flow (U6), kept free of UI so it can be tested.
-import { buildCsvRecords, parseCsv, type ColumnMapping } from './parsers/csv';
+import { buildCsvRecords, mappingFits, parseCsv, type ColumnMapping } from './parsers/csv';
 import { parseOfx } from './parsers/ofx';
 import type { ParseResult } from './parsers/types';
 
@@ -13,9 +13,10 @@ export function fileKind(name: string): PendingFile['kind'] | null {
   return null;
 }
 
-/** OFX needs no mapping. A CSV needs one unless the account already saved it. */
+/** OFX needs no mapping. A CSV needs one unless the account saved one that fits this file's columns. */
 export function nextStep(file: PendingFile, account: Account): 'map-columns' | 'preview' {
-  return file.kind === 'csv' && !account.file_mapping ? 'map-columns' : 'preview';
+  if (file.kind !== 'csv') return 'preview';
+  return account.file_mapping && mappingFits(parseCsv(file.text).headers, account.file_mapping) ? 'preview' : 'map-columns';
 }
 
 export function buildPreview(file: PendingFile, account: Account): ParseResult {

@@ -27,7 +27,8 @@ export function parseCsv(text: string): CsvTable {
   if (!clean.trim()) {
     return { headers: [], rows: [] };
   }
-  const delimiter = detectDelimiter(clean.split(/\r?\n/, 1)[0]);
+  // Judge the delimiter from the first lines together: a statement can open with a title line that has none.
+  const delimiter = detectDelimiter(clean.split(/\r?\n/, 20).join('\n'));
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
@@ -62,9 +63,31 @@ export function parseCsv(text: string): CsvTable {
     row.push(field);
     rows.push(row);
   }
-  const nonEmpty = rows.filter((r) => r.some((f) => f.trim()));
-  const [headers = [], ...data] = nonEmpty.map((r) => r.map((f) => f.trim()));
-  return { headers, rows: data };
+  const nonEmpty = rows.filter((r) => r.some((f) => f.trim())).map((r) => r.map((f) => f.trim()));
+  const start = findHeaderRow(nonEmpty);
+  return { headers: nonEmpty[start] ?? [], rows: nonEmpty.slice(start + 1) };
+}
+
+const DATE_HEADER = /date|datum|data/i;
+const AMOUNT_HEADER = /amount|debit|credit|money|paid|betrag|value|importo/i;
+
+/**
+ * Finds the transaction table's header row. Some exports, such as Revolut statements, open with title
+ * and summary lines before it. The header is the first row naming both a date and an amount column,
+ * or else the first of the widest rows.
+ */
+export function findHeaderRow(rows: string[][]) {
+  const named = rows.findIndex((r) => r.some((c) => DATE_HEADER.test(c)) && r.some((c) => AMOUNT_HEADER.test(c)));
+  if (named >= 0) return named;
+  const widest = Math.max(0, ...rows.map((r) => r.length));
+  return Math.max(0, rows.findIndex((r) => r.length === widest));
+}
+
+/** True when a saved mapping still fits this file's columns. */
+export function mappingFits(headers: string[], mapping: ColumnMapping) {
+  const used = [mapping.date, mapping.description, mapping.amount, mapping.debit, mapping.credit, mapping.currency];
+  const hasAmount = Boolean(mapping.amount || mapping.debit || mapping.credit);
+  return hasAmount && used.every((column) => !column || headers.includes(column));
 }
 
 /** Suggests a mapping from common header names, for the first upload's mapping screen. */

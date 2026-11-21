@@ -29,3 +29,11 @@ it('recognizes statement file types', () => {
   expect(fileKind('bank.ofx')).toBe('ofx');
   expect(fileKind('photo.jpg')).toBeNull();
 });
+
+it('asks for the mapping again when the saved one does not fit the file', () => {
+  const broken: Account = {
+    ...account,
+    file_mapping: { date: 'Summary', description: 'Summary', amount: 'Summary', dateFormat: 'YYYY-MM-DD', decimalSeparator: '.' },
+  };
+  expect(nextStep(csv, broken)).toBe('map-columns');
+});
