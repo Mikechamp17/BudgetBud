@@ -74,6 +74,12 @@ export default function PreviewScreen() {
             {preview.records.length} transactions ready
             {preview.errors.length ? `, ${preview.errors.length} rows could not be read` : ''}
           </ThemedText>
+          {preview.skippedRows ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              {preview.skippedRows} lines after the transactions were left out, such as totals or another account&apos;s
+              section. Import each account&apos;s section into its own account.
+            </ThemedText>
+          ) : null}
           {preview.errors.slice(0, 3).map((e) => (
             <ErrorText key={e.row}>
               Row {e.row}: {e.message}

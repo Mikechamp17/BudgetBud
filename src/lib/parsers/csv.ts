@@ -2,7 +2,8 @@ import { parseAmountToMinor } from '../money';
 import { parseDate, type DateFormat } from './dates';
 import type { ParseResult, SourceRecord } from './types';
 
-export type CsvTable = { headers: string[]; rows: string[][] };
+/** skippedRows counts rows after the first table ends, such as totals or another account's section. */
+export type CsvTable = { headers: string[]; rows: string[][]; skippedRows?: number };
 
 /** Which columns hold what. Saved on the financial account after the first upload (KTD14). */
 export type ColumnMapping = {
@@ -65,7 +66,17 @@ export function parseCsv(text: string): CsvTable {
   }
   const nonEmpty = rows.filter((r) => r.some((f) => f.trim())).map((r) => r.map((f) => f.trim()));
   const start = findHeaderRow(nonEmpty);
-  return { headers: nonEmpty[start] ?? [], rows: nonEmpty.slice(start + 1) };
+  const headers = nonEmpty[start] ?? [];
+  const after = nonEmpty.slice(start + 1);
+  // A statement can hold more than one table, such as a total line and then another account's section.
+  // The first table ends at a total or separator line, a section title, or a repeat of the header.
+  const end = after.findIndex(
+    (r) =>
+      /^(total|-{3,}|=+)/i.test(r[0] ?? '') ||
+      (r.filter((c) => c).length === 1 && headers.length > 2) ||
+      r.join('|') === headers.join('|'),
+  );
+  return { headers, rows: end < 0 ? after : after.slice(0, end), skippedRows: end < 0 ? 0 : after.length - end };
 }
 
 const DATE_HEADER = /date|datum|data/i;

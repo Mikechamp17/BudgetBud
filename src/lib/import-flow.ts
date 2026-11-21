@@ -26,7 +26,8 @@ export function buildPreview(file: PendingFile, account: Account): ParseResult {
   if (!account.file_mapping) {
     throw new Error('This account has no column mapping yet.');
   }
-  return buildCsvRecords(parseCsv(file.text), account.file_mapping, account.currency);
+  const table = parseCsv(file.text);
+  return { ...buildCsvRecords(table, account.file_mapping, account.currency), skippedRows: table.skippedRows ?? 0 };
 }
 
 export const NO_TRANSACTIONS = 'No transactions found';

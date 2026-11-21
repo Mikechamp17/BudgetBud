@@ -10,4 +10,5 @@ export type SourceRecord = {
 
 export type RowError = { row: number; message: string };
 
-export type ParseResult = { records: SourceRecord[]; errors: RowError[] };
+/** skippedRows counts lines after the transaction table that were not read, such as totals or other sections. */
+export type ParseResult = { records: SourceRecord[]; errors: RowError[]; skippedRows?: number };

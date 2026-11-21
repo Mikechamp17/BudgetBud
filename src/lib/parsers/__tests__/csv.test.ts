@@ -109,3 +109,12 @@ describe('dates written with month names', () => {
     expect(detectDateFormat(['13/11/2026', '01/11/2026'])).toBe('DD/MM/YYYY');
   });
 });
+
+describe('statement with a total line and a second account section', () => {
+  it('stops at the end of the first table and counts what it left out', () => {
+    const table = parseCsv(fixture('revolut-statement.csv'));
+    expect(table.rows).toHaveLength(2);
+    expect(table.rows.map((r) => r[4])).toEqual(['Lidl', 'Top-Up by *1234']);
+    expect(table.skippedRows).toBe(5);
+  });
+});
