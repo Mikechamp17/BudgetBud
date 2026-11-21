@@ -84,6 +84,11 @@ export async function handler(req: Request): Promise<Response> {
   if (!token || token === secretKey()) return json({ error: 'Sign in to delete your account' }, 401);
   const userId = await resolveUserId(req, admin, {});
   if (userId instanceof Response) return userId;
+  // The shared portfolio demo account stays; its data resets every night.
+  const { data: who } = await admin.auth.admin.getUserById(userId);
+  if (who?.user?.email?.toLowerCase() === 'demo@budgetbud.app') {
+    return json({ error: 'The demo account cannot be deleted.' }, 403);
+  }
   try {
     return json(await deleteAccount(supabaseDeleteDeps(admin), await enableBankingFromEnv(), userId));
   } catch (error) {

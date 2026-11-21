@@ -6,7 +6,9 @@ import { ThemedText } from '@/components/themed-text';
 import { Accent, Button, Card, ErrorText, Screen } from '@/components/ui/kit';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useSession } from '@/lib/auth';
 import { connectBank, linksNeedingAttention, listLinks, type BankLink } from '@/lib/banks';
+import { isDemoEmail } from '@/lib/demo';
 import { formatMoney } from '@/lib/money';
 import {
   compareCategories,
@@ -20,6 +22,7 @@ import {
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const { session } = useSession();
   const [month, setMonth] = useState(() => monthStart(new Date()));
   const [data, setData] = useState<{ current: MonthlySpending; previous: MonthlySpending } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +58,15 @@ export default function DashboardScreen() {
         </ThemedText>
         <Button kind="secondary" label="›" onPress={() => setMonth(shiftMonth(month, 1))} />
       </View>
+      {isDemoEmail(session?.user.email) ? (
+        <Card>
+          <ThemedText type="smallBold">You are viewing the demo</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Sample spending across a Revolut and a BOV account. Some purchases came from both a bank sync and a
+            statement upload and were merged. Changes reset every night.
+          </ThemedText>
+        </Card>
+      ) : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       {linksNeedingAttention(links).map(({ link, health }) => (
         <Card key={link.id}>

@@ -24,7 +24,7 @@ from (values
   ('lidl', 'contains', 'Groceries'),
   ('pavi', 'contains', 'Groceries'),
   ('pama', 'contains', 'Groceries'),
-  ('welbee', 'contains', 'Groceries'),
+  ('welbees', 'contains', 'Groceries'),
   ('greens supermarket', 'contains', 'Groceries'),
   ('scotts', 'contains', 'Groceries'),
   ('park towers', 'contains', 'Groceries'),
@@ -33,7 +33,7 @@ from (values
   ('aldi', 'contains', 'Groceries'),
   ('spar', 'exact', 'Groceries'),
   -- Dining
-  ('mcdonalds', 'contains', 'Dining'),
+  ('mcdonald', 'contains', 'Dining'),
   ('burger king', 'contains', 'Dining'),
   ('starbucks', 'contains', 'Dining'),
   ('costa coffee', 'contains', 'Dining'),

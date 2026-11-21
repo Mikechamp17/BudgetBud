@@ -70,7 +70,7 @@ it('shows an error and stays signed out after a wrong password', async () => {
   await renderApp('/sign-in');
   await fireEvent.changeText(await screen.findByPlaceholderText('Email'), 'owner@example.com');
   await fireEvent.changeText(screen.getByPlaceholderText('Password'), 'wrong');
-  await fireEvent.press(screen.getByRole('button'));
+  await fireEvent.press(screen.getAllByRole('button')[0]);
   expect(await screen.findByText('Invalid login credentials')).toBeTruthy();
   expect(screen.queryByText('Dashboard')).toBeNull();
 });
@@ -101,4 +101,14 @@ it('signs out from settings', async () => {
   await renderApp('/settings');
   await fireEvent.press(await screen.findByText('Sign out'));
   await waitFor(() => expect(auth.signOut).toHaveBeenCalled());
+});
+
+it('signs in to the demo account from the sign-in screen', async () => {
+  mockUseSession.mockReturnValue({ session: null, isLoading: false });
+  auth.signInWithPassword.mockResolvedValue({ data: {}, error: null });
+  await renderApp('/sign-in');
+  await fireEvent.press(await screen.findByText('Try the demo'));
+  await waitFor(() =>
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: 'demo@budgetbud.app', password: 'try-budgetbud-demo' }),
+  );
 });

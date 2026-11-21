@@ -1,4 +1,5 @@
 import { Link, type Href } from 'expo-router';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,10 +16,12 @@ type AuthFormProps = {
   footerText: string;
   footerLinkLabel: string;
   footerHref: Href;
+  /** Shown under the form, such as the demo button on sign-in. */
+  extra?: ReactNode;
 };
 
 /** Email and password form shared by sign-in and sign-up. onSubmit returns an error message or null. */
-export function AuthForm({ title, submitLabel, onSubmit, footerText, footerLinkLabel, footerHref }: AuthFormProps) {
+export function AuthForm({ title, submitLabel, onSubmit, footerText, footerLinkLabel, footerHref, extra }: AuthFormProps) {
   const theme = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,6 +81,7 @@ export function AuthForm({ title, submitLabel, onSubmit, footerText, footerLinkL
             <ThemedText type="linkPrimary">{footerLinkLabel}</ThemedText>
           </Link>
         </View>
+        {extra}
       </SafeAreaView>
     </ThemedView>
   );

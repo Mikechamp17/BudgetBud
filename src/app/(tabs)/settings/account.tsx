@@ -5,11 +5,14 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Danger, ErrorText, Screen } from '@/components/ui/kit';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useSession } from '@/lib/auth';
+import { isDemoEmail } from '@/lib/demo';
 import { supabase } from '@/lib/supabase';
 
 /** Deletes the account and everything tied to it. The user types DELETE to confirm. */
 export default function AccountScreen() {
   const theme = useTheme();
+  const { session } = useSession();
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +28,14 @@ export default function AccountScreen() {
     }
     // The session belongs to a user that no longer exists, so clear it locally. The guard returns to sign-in.
     await supabase.auth.signOut({ scope: 'local' });
+  }
+
+  if (isDemoEmail(session?.user.email)) {
+    return (
+      <Screen title="Delete account">
+        <ThemedText>The demo account cannot be deleted. Its data resets every night.</ThemedText>
+      </Screen>
+    );
   }
 
   return (
